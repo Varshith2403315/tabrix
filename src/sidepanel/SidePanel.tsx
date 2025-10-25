@@ -246,7 +246,7 @@ const MemorySearchView: React.FC = () => {
                     type="search"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
-                    placeholder="Input about what are searching for..."
+                    placeholder="Input about what are searching for"
                     className="
                         w-full p-2 rounded-lg
                         border border-gray-300 dark:border-gray-600
