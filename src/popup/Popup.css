@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+html, body {
+  width: 350px !important; /* adjust to match your new desired width */
+  height: auto;
+}
+html, body {
+  @apply w-full h-full bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors;
+}
+#root {
+  @apply w-full h-full;
+}
