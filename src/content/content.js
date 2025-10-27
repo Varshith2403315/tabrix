@@ -76,16 +76,27 @@ function showDuplicatePopup(existingTabId, windowId) {
     ">Go</button>
   `;
 
-  const button = popup.querySelector("button");
+    const button = popup.querySelector("button");
   button.addEventListener("click", () => {
     console.log("[DuplicateNotifier] 'Go' button clicked → focusing tab:", existingTabId);
-    chrome.runtime.sendMessage({
-      type: "FOCUS_EXISTING_TAB",
-      tabId: existingTabId,
-      windowId,
-    });
+
+    // Give background service worker a tiny delay to wake up properly
+    setTimeout(() => {
+      chrome.runtime.sendMessage(
+        {
+          type: "FOCUS_EXISTING_TAB",
+          tabId: existingTabId,
+          windowId,
+        },
+        (response) => {
+          console.log("[DuplicateNotifier] Background responded:", response);
+        }
+      );
+    }, 100); // small delay (100ms) improves reliability
+
     popup.remove();
   });
+
 
   document.body.appendChild(popup);
   setTimeout(() => {

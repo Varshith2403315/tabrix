@@ -58,32 +58,64 @@ initialize();
 
 // --- AI Pipeline ---
 async function processTabContent(tabId, content) {
-  if (!tabsStore[tabId] || !content.bodyText) return;
+  if (!tabId) {
+    console.warn("⚠️ processTabContent called without tabId:", content);
+    return;
+  }
 
-  const note = await generateTabNote(content.bodyText);
-  const tags = await generateSmartTags(note);
+  // Ensure object exists before writing
+  if (!tabsStore[tabId]) {
+    console.log(`[AI Pipeline] Initializing empty record for tab ${tabId}`);
+    tabsStore[tabId] = {
+      tabId,
+      url: content.url || "",
+      title: content.title || "",
+      rawText: content.bodyText || "",
+      tabNote: "",
+      tags: [],
+      lastUpdated: Date.now(),
+      clusterId: null,
+      totalTime: 0
+    };
+  }
 
-  tabsStore[tabId].tabNote = note;
-  tabsStore[tabId].tags = tags;
-  tabsStore[tabId].lastUpdated = Date.now();
-  saveTabs(tabsStore);
-   // Notify UI that tab data changed (existing)
-  chrome.runtime.sendMessage({ type: 'DATA_UPDATED' }, suppressAsyncError());
-   //  NEW: Send the updated tab entry to the side panel so it can update Smart Tags view
-  const updatedTabEntry = {
-  tabId,
-  url: tabsStore[tabId].url,
-  title: tabsStore[tabId].title,
-  tabNote: tabsStore[tabId].tabNote,
-  tags: tabsStore[tabId].tags,
-  lastUpdated: tabsStore[tabId].lastUpdated
-  };
-  chrome.runtime.sendMessage(
-    { type: 'UPDATE_SMART_TAGS', data: updatedTabEntry },
-    suppressAsyncError()
-  );
+  if (!content.bodyText) {
+    console.log(`[AI Pipeline] Skipping empty content for tab ${tabId}`);
+    return;
+  }
 
+  try {
+    const note = await generateTabNote(content.bodyText);
+    const tags = await generateSmartTags(note);
+
+    tabsStore[tabId].tabNote = note;
+    tabsStore[tabId].tags = tags;
+    tabsStore[tabId].lastUpdated = Date.now();
+
+    await saveTabs(tabsStore);
+
+    chrome.runtime.sendMessage({ type: 'DATA_UPDATED' }, suppressAsyncError());
+
+    const updatedTabEntry = {
+      tabId,
+      url: tabsStore[tabId].url,
+      title: tabsStore[tabId].title,
+      tabNote: tabsStore[tabId].tabNote,
+      tags: tabsStore[tabId].tags,
+      lastUpdated: tabsStore[tabId].lastUpdated
+    };
+
+    chrome.runtime.sendMessage(
+      { type: 'UPDATE_SMART_TAGS', data: updatedTabEntry },
+      suppressAsyncError()
+    );
+
+    console.log(`[AI Pipeline] ✅ Completed update for tab ${tabId}`);
+  } catch (err) {
+    console.error(`[AI Pipeline] ❌ Error for tab ${tabId}:`, err);
+  }
 }
+
 
 // --- Tab Lifecycle Management ---
 chrome.tabs.onRemoved.addListener((tabId) => {
@@ -233,31 +265,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  // --- 🔹 Feature Toggle ---
-  else if (message.type === 'TOGGLE_FEATURE') {
-    console.log(`Feature Toggled: ${message.feature} is now ${message.state}`);
-  }
-    // --- 🔹 Focus existing duplicate tab ---
   else if (message.type === "FOCUS_EXISTING_TAB") {
-    const { tabId, windowId } = message;
-    console.log(`[DuplicateNotifier] 🪄 Focusing existing tab ${tabId} in window ${windowId}`);
+  const { tabId, windowId } = message;
+  console.log(`[DuplicateNotifier] 🪄 Focusing existing tab ${tabId} in window ${windowId}`);
 
-    // First, bring the window to the front
-    chrome.windows.update(windowId, { focused: true }, () => {
+  // If windowId is missing, try to fetch it dynamically
+  if (!windowId) {
+    chrome.tabs.get(tabId, (tabInfo) => {
+      if (chrome.runtime.lastError || !tabInfo) {
+        console.error("[DuplicateNotifier] Could not get tab info:", chrome.runtime.lastError?.message);
+        return;
+      }
+      const actualWindowId = tabInfo.windowId;
+      console.log(`[DuplicateNotifier] 🪄 Found windowId dynamically: ${actualWindowId}`);
+      focusTab(actualWindowId, tabId);
+    });
+  } else {
+    focusTab(windowId, tabId);
+  }
+
+  function focusTab(winId, tId) {
+    // Bring window to front first
+    chrome.windows.update(winId, { focused: true }, () => {
       if (chrome.runtime.lastError) {
         console.warn("[DuplicateNotifier] Could not focus window:", chrome.runtime.lastError.message);
       }
 
-      // Then, activate the existing tab
-      chrome.tabs.update(tabId, { active: true }, () => {
+      // Then focus tab
+      chrome.tabs.update(tId, { active: true }, () => {
         if (chrome.runtime.lastError) {
-          console.error("[DuplicateNotifier] Failed to activate tab:", chrome.runtime.lastError.message);
+          console.error("[DuplicateNotifier] ❌ Focus failed:", chrome.runtime.lastError.message);
         } else {
-          console.log(`[DuplicateNotifier] ✅ Successfully focused tab ${tabId}`);
+          console.log(`[DuplicateNotifier] ✅ Successfully focused tab ${tId}`);
         }
       });
     });
   }
+
+  return true; // Keep listener alive
+}
+
+
 
 });
 
@@ -323,3 +371,30 @@ chrome.tabs.onCreated.addListener(async (newTab) => {
     console.error("[DuplicateNotifier] Error checking duplicates:", err);
   }
 });
+
+//Liveupdated duplicate notifier
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (changeInfo.status === "complete" && tab.url && tab.url !== "chrome://newtab/") {
+    console.log(`[DuplicateNotifier] Tab updated → ${tab.url}`);
+
+    chrome.tabs.query({}, (tabs) => {
+      const duplicates = tabs.filter(
+        (t) => t.id !== tabId && t.url === tab.url
+      );
+
+      if (duplicates.length > 0) {
+        const existingTab = duplicates[0];
+        console.log(`[DuplicateNotifier] 🚨 Duplicate detected after navigation: ${tab.url}`);
+
+        chrome.tabs.sendMessage(tab.id, {
+          type: "DUPLICATE_TAB_FOUND",
+          existingTabId: existingTab.id,
+          existingWindowId: existingTab.windowId,
+          url: tab.url,
+        });
+      }
+    });
+  }
+});
+
