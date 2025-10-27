@@ -42,3 +42,63 @@ chrome.runtime.sendMessage({
     type: "PAGE_CONTENT",
     data: extractPageData()
 });
+
+// --- 🔁 Duplicate Notifier UI with Debug Logs ---
+console.log("[DuplicateNotifier] Content script loaded on:", window.location.href);
+
+function showDuplicatePopup(existingTabId, windowId) {
+  console.log("[DuplicateNotifier] Showing popup for duplicate:", existingTabId);
+
+  const popup = document.createElement("div");
+  popup.style.position = "fixed";
+  popup.style.top = "20px";
+  popup.style.right = "20px";
+  popup.style.background = "#1f2937";
+  popup.style.color = "#fff";
+  popup.style.fontSize = "13px";
+  popup.style.padding = "8px 12px";
+  popup.style.borderRadius = "8px";
+  popup.style.boxShadow = "0 4px 10px rgba(0,0,0,0.3)";
+  popup.style.display = "flex";
+  popup.style.alignItems = "center";
+  popup.style.gap = "8px";
+  popup.style.zIndex = "999999";
+
+  popup.innerHTML = `
+    <span>🔁This page is already open</span>
+    <button style="
+      background-color:#3b82f6;
+      border:none;
+      color:white;
+      padding:3px 8px;
+      border-radius:4px;
+      cursor:pointer;
+    ">Go</button>
+  `;
+
+  const button = popup.querySelector("button");
+  button.addEventListener("click", () => {
+    console.log("[DuplicateNotifier] 'Go' button clicked → focusing tab:", existingTabId);
+    chrome.runtime.sendMessage({
+      type: "FOCUS_EXISTING_TAB",
+      tabId: existingTabId,
+      windowId,
+    });
+    popup.remove();
+  });
+
+  document.body.appendChild(popup);
+  setTimeout(() => {
+    console.log("[DuplicateNotifier] Popup auto-removed");
+    popup.remove();
+  }, 10000);
+}
+
+chrome.runtime.onMessage.addListener((msg) => {
+  console.log("[DuplicateNotifier] Message received:", msg);
+
+  if (msg.type === "DUPLICATE_TAB_FOUND") {
+    showDuplicatePopup(msg.existingTabId, msg.windowId);
+  }
+});
+ 

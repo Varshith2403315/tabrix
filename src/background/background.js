@@ -52,7 +52,7 @@ async function initialize() {
   tabsStore = await loadTabs();
   isAiReady = await initAI();
   injectScriptsIntoExistingTabs();
-  console.log(`📊 Loaded ${Object.keys(tabsStore).length} tabs from storage. AI ready: ${isAiReady}`);
+  console.log(` Loaded ${Object.keys(tabsStore).length} tabs from storage. AI ready: ${isAiReady}`);
 }
 initialize();
 
@@ -69,7 +69,7 @@ async function processTabContent(tabId, content) {
   saveTabs(tabsStore);
    // Notify UI that tab data changed (existing)
   chrome.runtime.sendMessage({ type: 'DATA_UPDATED' }, suppressAsyncError());
-   // 🟦 NEW: Send the updated tab entry to the side panel so it can update Smart Tags view
+   //  NEW: Send the updated tab entry to the side panel so it can update Smart Tags view
   const updatedTabEntry = {
   tabId,
   url: tabsStore[tabId].url,
@@ -114,7 +114,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const tabId = sender.tab?.id || message.tabId;
 
   if (message.type === 'AI_COMPUTATION_START') {
-    console.log("⏰ Resetting Service Worker idle timer for AI computation...");
+    console.log("Resetting Service Worker idle timer for AI computation...");
     return false;
   }
 
@@ -136,11 +136,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (tabsStore[tabId]?.tabNote) {
           const summaryPreview = tabsStore[tabId].tabNote.substring(0, 100) + "...";
           const tagsList = tabsStore[tabId].tags.join(", ");
-          console.log(`✅ Tab ${tabId} Summary Complete: "${summaryPreview}"`);
-          console.log(`🏷️ Tags Generated: [${tagsList}]`);
+          console.log(` Tab ${tabId} Summary Complete: "${summaryPreview}"`);
+          console.log(` Tags Generated: [${tagsList}]`);
         }
       })
-      .catch(err => console.error(`❌ Error during pipeline for tab ${tabId}:`, err));
+      .catch(err => console.error(` Error during pipeline for tab ${tabId}:`, err));
 
   } else if (message.type === "REQUEST_TABS_DATA") {
     const tabList = Object.values(tabsStore).sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
@@ -171,7 +171,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   } else if (message.type === "MEMORY_SEARCH_QUERY") {
   const userQuery = (message.query || '').trim();
-  console.log("🔎 MEMORY_SEARCH_QUERY received:", userQuery);
+  console.log("MEMORY_SEARCH_QUERY received:", userQuery);
 
   if (!userQuery) {
     sendResponse({ results: [] });
@@ -184,7 +184,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const results = await unifiedMemorySearch(userQuery, tabsArray);
 
       if (results?.length) {
-        console.log("✅ Unified Memory Search results:", results);
+        console.log("Unified Memory Search results:", results);
         chrome.runtime.sendMessage({
           type: "AI_MEMORY_RESULTS",
           results
@@ -195,7 +195,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       sendResponse({ results });
     } catch (err) {
-      console.error("❌ Unified Memory Search failed:", err);
+      console.error("Unified Memory Search failed:", err);
       sendResponse({ results: [] });
     }
   })();
@@ -237,5 +237,89 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   else if (message.type === 'TOGGLE_FEATURE') {
     console.log(`Feature Toggled: ${message.feature} is now ${message.state}`);
   }
+    // --- 🔹 Focus existing duplicate tab ---
+  else if (message.type === "FOCUS_EXISTING_TAB") {
+    const { tabId, windowId } = message;
+    console.log(`[DuplicateNotifier] 🪄 Focusing existing tab ${tabId} in window ${windowId}`);
+
+    // First, bring the window to the front
+    chrome.windows.update(windowId, { focused: true }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn("[DuplicateNotifier] Could not focus window:", chrome.runtime.lastError.message);
+      }
+
+      // Then, activate the existing tab
+      chrome.tabs.update(tabId, { active: true }, () => {
+        if (chrome.runtime.lastError) {
+          console.error("[DuplicateNotifier] Failed to activate tab:", chrome.runtime.lastError.message);
+        } else {
+          console.log(`[DuplicateNotifier] ✅ Successfully focused tab ${tabId}`);
+        }
+      });
+    });
+  }
+
 });
 
+// --- Duplicate Tab Notifier with Debug Logs ---
+console.log("[DuplicateNotifier] Background script loaded");
+
+chrome.tabs.onCreated.addListener(async (newTab) => {
+  console.log("[DuplicateNotifier] New tab created:", newTab.id, newTab.url);
+
+  try {
+    setTimeout(async () => {
+      console.log("[DuplicateNotifier] Checking duplicates for:", newTab.id, newTab.url);
+      if (!newTab.url) {
+        console.log("[DuplicateNotifier] New tab has no URL yet, skipping...");
+        return;
+      }
+
+      const allTabs = await chrome.tabs.query({});
+      const duplicate = allTabs.find(
+        (t) => t.id !== newTab.id && t.url === newTab.url
+      );
+
+      if (duplicate) {
+        console.log(`[DuplicateNotifier] ⚠️ Duplicate found for ${newTab.url}`);
+        console.log("Existing tab:", duplicate.id, "Window:", duplicate.windowId);
+
+        //Safer: check if content script is alive
+        chrome.tabs.sendMessage(
+          newTab.id,
+          {
+            type: "DUPLICATE_TAB_FOUND",
+            existingTabId: duplicate.id,
+            windowId: duplicate.windowId,
+            url: duplicate.url,
+          },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              console.warn(
+                "[DuplicateNotifier] No content script found. Injecting manually..."
+              );
+              chrome.scripting.executeScript({
+                target: { tabId: newTab.id },
+                files: ["src/content/content.js"],
+              }, () => {
+                console.log("[DuplicateNotifier] Re-trying message after injection");
+                chrome.tabs.sendMessage(newTab.id, {
+                  type: "DUPLICATE_TAB_FOUND",
+                  existingTabId: duplicate.id,
+                  windowId: duplicate.windowId,
+                  url: duplicate.url,
+                });
+              });
+            } else {
+              console.log("[DuplicateNotifier] Message delivered successfully ");
+            }
+          }
+        );
+      } else {
+        console.log("[DuplicateNotifier]  No duplicates found for:", newTab.url);
+      }
+    }, 1000); // little longer delay to let content script load
+  } catch (err) {
+    console.error("[DuplicateNotifier] Error checking duplicates:", err);
+  }
+});
