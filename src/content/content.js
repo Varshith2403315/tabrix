@@ -51,18 +51,19 @@ function showDuplicatePopup(existingTabId, windowId) {
 
   const popup = document.createElement("div");
   popup.style.position = "fixed";
-  popup.style.top = "20px";
-  popup.style.right = "20px";
-  popup.style.background = "#1f2937";
+  popup.style.top = "30px";
+  popup.style.right = "30px";
+  popup.style.background = "#CD2C58";
   popup.style.color = "#fff";
-  popup.style.fontSize = "13px";
-  popup.style.padding = "8px 12px";
-  popup.style.borderRadius = "8px";
+  popup.style.fontSize = "15px";
+  popup.style.padding = "14px 18px";
+  popup.style.borderRadius = "10px";
   popup.style.boxShadow = "0 4px 10px rgba(0,0,0,0.3)";
   popup.style.display = "flex";
   popup.style.alignItems = "center";
   popup.style.gap = "8px";
   popup.style.zIndex = "999999";
+
 
   popup.innerHTML = `
     <span>🔁This page is already open</span>
