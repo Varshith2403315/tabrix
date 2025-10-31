@@ -189,7 +189,7 @@ function renderNote(note) {
   textDiv.style.minHeight = "40px";
   textDiv.style.whiteSpace = "pre-wrap";
   textDiv.style.wordBreak = "break-word";
-
+  textDiv.style.color = "#000"
   // apply saved font size from storage (async)
   chrome.storage.local.get("stickyFontSize", ({ stickyFontSize = "16px" }) => {
     textDiv.style.fontSize = stickyFontSize;
