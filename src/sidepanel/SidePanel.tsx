@@ -55,8 +55,8 @@ const TabNotesView: React.FC = () => {
 
     return (
         <div className="p-4 w-full h-full flex flex-col">
-            <h3 className="text-xl font-bold mb-4">Your AI Tab Notes</h3>
-            
+            <h3 className="text-xl font-bold mb-4">Ai-Tab Notes</h3>
+            <h4>Click on the note to go to the pages</h4>
             {isLoading && <div className="text-center text-gray-500 py-4">Loading and summarizing tabs...</div>}
 
             <div className="overflow-y-auto flex-1 space-y-3">
@@ -362,7 +362,7 @@ export default function SidePanel() {
     return (
         <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
             {/* --- Top Navigation Bar (The three buttons) --- */}
-            <div className="flex justify-around p-3 bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+            <div className="flex justify-around p-3 bg-[#FFF0DD] dark:bg-gray-900 border-b border-gray-200 shadow-sm sticky top-0 z-10">
                 {navButtons.map((button) => (
                     <button
                         key={button.name}
@@ -379,7 +379,7 @@ export default function SidePanel() {
             </div>
 
             {/* --- Main Feature Content Area --- */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 bg-[#f8e8cf] dark:bg-[#272631] overflow-y-auto">
                 {renderFeature(activeFeature)}
             </div>
 
