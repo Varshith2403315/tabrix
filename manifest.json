@@ -15,7 +15,7 @@
   
   "permissions": [
     "tabs", "storage", "scripting", "activeTab", "notifications", 
-    "builtInAI",
+    "builtInAI","alarms",
     "sidePanel"     
   ],
   

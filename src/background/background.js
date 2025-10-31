@@ -63,58 +63,93 @@ async function processTabContent(tabId, content) {
     return;
   }
 
-  // Ensure object exists before writing
+  // Ensure store is ready (handles background reloads)
+  if (!tabsStore || typeof tabsStore !== "object") {
+    console.warn("⚠️ tabsStore was undefined — loading from storage...");
+    tabsStore = (await loadTabs()) || {};
+  }
+
+  // Ensure record exists before writing
   if (!tabsStore[tabId]) {
-    console.log(`[AI Pipeline] Initializing empty record for tab ${tabId}`);
+    console.log(`[AI Pipeline] 🆕 Creating record for tab ${tabId}`);
     tabsStore[tabId] = {
       tabId,
-      url: content.url || "",
-      title: content.title || "",
-      rawText: content.bodyText || "",
+      url: content?.url || "",
+      title: content?.title || "",
+      rawText: content?.bodyText || "",
       tabNote: "",
       tags: [],
       lastUpdated: Date.now(),
       clusterId: null,
-      totalTime: 0
+      totalTime: 0,
     };
   }
 
-  if (!content.bodyText) {
-    console.log(`[AI Pipeline] Skipping empty content for tab ${tabId}`);
+  if (!content?.bodyText) {
+    console.log(`[AI Pipeline] ⚪ Skipping empty content for tab ${tabId}`);
     return;
   }
 
   try {
+    // Step 1: Generate summary first (show immediately)
     const note = await generateTabNote(content.bodyText);
-    const tags = await generateSmartTags(note);
 
-    tabsStore[tabId].tabNote = note;
-    tabsStore[tabId].tags = tags;
-    tabsStore[tabId].lastUpdated = Date.now();
+    // Update UI right away with the summary
+    Object.assign(tabsStore[tabId], {
+      tabNote: note,
+      lastUpdated: Date.now(),
+    });
+    await saveTabs(tabsStore);
+    chrome.runtime.sendMessage({ 
+      type: "UPDATE_SMART_TAGS", 
+      data: { tabId, tabNote: note } 
+    }, suppressAsyncError());
+    console.log(`[AI Pipeline] 🟢 Summary ready for tab ${tabId}, generating tags in background...`);
+
+    // Step 2: Generate tags asynchronously (non-blocking)
+    generateSmartTags(note).then(async (tags) => {
+      if (!tabsStore[tabId]) return;
+      tabsStore[tabId].tags = tags;
+      tabsStore[tabId].lastUpdated = Date.now();
+      await saveTabs(tabsStore);
+      chrome.runtime.sendMessage({
+        type: "UPDATE_SMART_TAGS",
+        data: { tabId, tags }
+      }, suppressAsyncError());
+      console.log(`[AI Pipeline] 🏷️ Tags ready for tab ${tabId}`);
+    }).catch(err => console.error(`[AI Pipeline] ⚠️ Tag generation failed for tab ${tabId}:`, err));
+
+
+    // 🔒 Reconfirm existence (prevents "undefined" during race)
+    if (!tabsStore[tabId]) {
+      console.warn(`[AI Pipeline] Tab ${tabId} record vanished mid-process, recreating...`);
+      tabsStore[tabId] = {};
+    }
+
+    Object.assign(tabsStore[tabId], {
+      tabNote: note,
+      tags,
+      lastUpdated: Date.now(),
+    });
 
     await saveTabs(tabsStore);
 
-    chrome.runtime.sendMessage({ type: 'DATA_UPDATED' }, suppressAsyncError());
-
-    const updatedTabEntry = {
+    const updated = {
       tabId,
       url: tabsStore[tabId].url,
       title: tabsStore[tabId].title,
       tabNote: tabsStore[tabId].tabNote,
       tags: tabsStore[tabId].tags,
-      lastUpdated: tabsStore[tabId].lastUpdated
+      lastUpdated: tabsStore[tabId].lastUpdated,
     };
 
-    chrome.runtime.sendMessage(
-      { type: 'UPDATE_SMART_TAGS', data: updatedTabEntry },
-      suppressAsyncError()
-    );
-
+    chrome.runtime.sendMessage({ type: "UPDATE_SMART_TAGS", data: updated }, suppressAsyncError());
     console.log(`[AI Pipeline] ✅ Completed update for tab ${tabId}`);
   } catch (err) {
     console.error(`[AI Pipeline] ❌ Error for tab ${tabId}:`, err);
   }
 }
+
 
 
 // --- Tab Lifecycle Management ---
@@ -149,7 +184,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     console.log("Resetting Service Worker idle timer for AI computation...");
     return false;
   }
-
+  if (message.type === "PING") {
+    console.log("📶 Received PING from content script");
+    sendResponse({ alive: true });
+    return true; // keep message channel alive
+  }
   if (message.type === "PAGE_CONTENT" && tabId) {
     tabsStore[tabId] = tabsStore[tabId] || {
       tabId,
@@ -397,4 +436,66 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     });
   }
 });
+// background.js (append near bottom)
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // inside chrome.runtime.onMessage listener in background.js
+if (msg.type === "CREATE_STICKY_NOTE") {
+  chrome.storage.local.get("stickyNotes", ({ stickyNotes = {} }) => {
+    const url = sender?.tab?.url || (msg.note && msg.note.url) || "";
+    if (!stickyNotes[url]) stickyNotes[url] = [];
 
+    // ensure note has id
+    if (!msg.note.id) msg.note.id = Date.now();
+
+    const idx = stickyNotes[url].findIndex(n => n.id === msg.note.id);
+    if (idx >= 0) {
+      // update existing
+      stickyNotes[url][idx] = msg.note;
+    } else {
+      stickyNotes[url].push(msg.note);
+    }
+
+    chrome.storage.local.set({ stickyNotes }, () => {
+      sendResponse({ success: true });
+    });
+  });
+  return true; // keep sendResponse alive
+}
+
+// --- DELETE Sticky Note Handler ---
+else if (msg.type === "DELETE_STICKY_NOTE") {
+  chrome.storage.local.get("stickyNotes", ({ stickyNotes = {} }) => {
+    const url = msg.url;
+    if (!stickyNotes[url]) return sendResponse({ success: false });
+
+    stickyNotes[url] = stickyNotes[url].filter(n => n.id !== msg.id);
+    chrome.storage.local.set({ stickyNotes }, () => sendResponse({ success: true }));
+  });
+  return true;
+}
+
+  if (msg.type === "GET_STICKY_NOTES") {
+    chrome.storage.local.get("stickyNotes", ({ stickyNotes = {} }) => {
+      sendResponse(stickyNotes[msg.url] || []);
+    });
+    return true;
+  }
+
+});
+
+// --- Keep-Alive Mechanism ---
+
+function setupKeepAlive() {
+  chrome.alarms.create("keepAliveAlarm", { periodInMinutes: 4 });
+  console.log("⏰ KeepAlive alarm initialized");
+}
+
+chrome.runtime.onInstalled.addListener(setupKeepAlive);
+chrome.runtime.onStartup.addListener(setupKeepAlive);
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === "keepAliveAlarm") {
+    console.log("🔄 KeepAlive alarm ping");
+    chrome.storage.local.set({ lastKeepAlive: Date.now() });
+  }
+});

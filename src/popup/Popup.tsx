@@ -1,10 +1,9 @@
 // src/popup/Popup.tsx
-
 import React, { useState, useEffect, useCallback } from "react";
 
 // --- Type Definitions ---
 type Feature = 'TabNotes*' | 'SmartTags' | 'MemorySearch';
-type ToggleKey = 'focusMode' | 'duplicateNotifier';
+type ToggleKey = 'duplicateNotifier' | 'stickyNotes';
 
 // Data for the main navigable features
 const mainFeatures: { icon: string; name: Feature; description: string }[] = [
@@ -15,8 +14,8 @@ const mainFeatures: { icon: string; name: Feature; description: string }[] = [
 
 // Initial state for toggles (will be fetched from storage later)
 const initialToggles = {
-    focusMode: false,
-    duplicateNotifier: true, 
+  duplicateNotifier: true,
+  stickyNotes: true, // default ON
 };
 
 // Function to handle opening the Side Panel
@@ -38,6 +37,13 @@ const openSidePanel = (feature: Feature) => {
 
 export default function Popup() {
     const [toggles, setToggles] = useState(initialToggles);
+    // ✅ Load saved toggle states from storage on mount
+    useEffect(() => {
+      chrome.storage.sync.get("featureToggles", (res) => {
+        if (res.featureToggles) setToggles(res.featureToggles);
+      });
+    }, []);
+
     const [modelStatus, setModelStatus] = useState('checking...');
     const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
@@ -121,18 +127,18 @@ const toggleTheme = () => {
         openSidePanel(feature); 
     };
 
+    // ✅ Save toggles persistently and notify background
     const handleToggle = (key: ToggleKey) => {
-        setToggles(prev => ({
-            ...prev,
-            [key]: !prev[key]
-        }));
-        // Send message to background.js to handle logic/persistence
-        chrome.runtime.sendMessage({ 
-            type: 'TOGGLE_FEATURE', 
-            feature: key, 
-            state: !toggles[key] 
-        });
+      const next = { ...toggles, [key]: !toggles[key] };
+      setToggles(next);
+      chrome.storage.sync.set({ featureToggles: next }); // save globally
+      chrome.runtime.sendMessage({
+          type: "TOGGLE_FEATURE",
+          feature: key,
+          state: next[key],
+      });
     };
+
     
     const isReady = modelStatus === 'available';
 
@@ -188,7 +194,7 @@ const toggleTheme = () => {
             )}
 
 
-            {/* --- Main Feature Links (Open Side Panel) --- */}
+            {/* --- Main Feature Links (Open Side Panel) */}
             <div className={`flex flex-col space-y-3 mb-5 ${!isReady ? 'opacity-50 pointer-events-none' : ''}`}>
                 <span className="text-sm font-semibold text-gray-500 mt-2">Core Features</span>
 
@@ -208,20 +214,8 @@ const toggleTheme = () => {
                 ))}
             </div>
 
-            {/* --- Toggle Controls (Quick Action) --- */}
+            {/* --- Toggle Controls (Quick Action) */}
             <span className="text-sm font-semibold text-gray-500 pt-3 border-t mt-3">Productivity Toggles</span>
-
-            {/* Focus Mode Toggle */}
-            <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
-                <div className="flex items-center">
-                    <span className="text-xl mr-3">💡</span>
-                    <span className="text-base font-medium text-gray-800">Focus Mode</span>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                    <input type="checkbox" checked={toggles.focusMode} onChange={() => handleToggle('focusMode')} className="sr-only peer" />
-                    <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
-                </label>
-            </div>
 
             {/* Duplicate Notifier Toggle */}
             <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
@@ -233,6 +227,23 @@ const toggleTheme = () => {
                     <input type="checkbox" checked={toggles.duplicateNotifier} onChange={() => handleToggle('duplicateNotifier')} className="sr-only peer" />
                     <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
                 </label>
+            </div>
+
+            {/* Sticky Notes Toggle */}
+            <div className="flex items-center justify-between p-2 rounded hover:bg-gray-50">
+            <div className="flex items-center">
+                <span className="text-xl mr-3">🗒️</span>
+                <span className="text-base font-medium text-gray-800">Sticky Notes</span>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                type="checkbox"
+                checked={toggles.stickyNotes}
+                onChange={() => handleToggle('stickyNotes')}
+                className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:border-gray-300 after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
             </div>
 
             <p className="text-xs text-center text-gray-400 mt-4 pt-2 border-t">Built for the AI Challenge 2025.</p>
