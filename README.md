@@ -1,73 +1,93 @@
-# React + TypeScript + Vite
+# AI-Tabrix: Smart Tab Memory
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**AI-Tabrix** is a Chrome extension that helps you stay organized and focused by transforming your browser tabs into a smart, searchable memory system — powered by built-in AI summarization and tagging.
 
-Currently, two official plugins are available:
+Developed as a **solo project** during the *Chrome Built-in AI Hackathon 2025*.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## React Compiler
+##  Overview
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Modern browsers are powerful, but managing dozens of open tabs isn’t. **AI-Tabrix** solves tab overload by automatically summarizing and categorizing every tab you open — so you can instantly recall ideas, links, and research, even after you close them.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+##  Key Features
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- **Smart Summaries** – Generates concise AI summaries of each tab in real time.  
+- **Auto Tagging** – Adds intelligent tags to help you find any tab later.  
+- **Session Memory** – Saves tab sessions for quick reopening.  
+- **Sticky Notes** – Add quick thoughts or reminders directly on any page.  
+- **Lightweight UI** – Fast, minimal, and built for performance.  
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+##  How It Works
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+AI-Tabrix uses **Chrome’s built-in AI APIs** and a hybrid summarizer model to:
+1. Capture tab content.
+2. Summarize it using on-device AI.
+3. Generate topic-based tags.
+4. Store everything locally for privacy and instant access.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+---
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+##  Tech Stack
+
+- **Frontend:** HTML, CSS, JavaScript  
+- **Runtime:** Chrome Extension (Manifest V3)  
+- **AI Integration:** Chrome Built-in AI APIs  
+- **Storage:** Chrome local storage (session persistence)
+
+---
+
+##  Installation
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/your-username/ai-tabrix.git
+Open Chrome and navigate to:
+
+chrome://extensions/
+
+Enable Developer Mode (top right corner).
+
+Click “Load unpacked” and select your project folder.
+
+The AI-Tabrix icon should now appear in your toolbar.
+
+
+## Folder structure
+
+ai-tabrix/
+├── src/
+
+│   ├── background/
+
+│   ├── content/
+
+│   ├── popup/
+
+│   └── assets/
+
+├── manifest.json
+
+├── README.md
+
+└── package.json
+
+
+
+### Hackathon Context
+
+Built for the Chrome Built-in AI Hackathon 2025 — as a solo developer project.
+Focused on solving real-world tab fatigue with a simple, AI-augmented experience.
+
+
+Contributing
+
+Contributions and feedback are welcome.
+If you’d like to suggest a feature or report a bug:
+---
+- Open an issue on GitHub
+- Or submit a pull request with clear commit messages
